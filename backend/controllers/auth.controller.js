@@ -161,7 +161,7 @@ const updateProfile = async (req, res) => {
     const updated = await usersDal.updateProfile(req.user.id, {
       name: name || user.name,
       email: email || user.email,
-      profilePicture: profilePicture || user.profilePicture
+      profilePicture: profilePicture !== undefined ? profilePicture : user.profilePicture
     });
 
     res.json({

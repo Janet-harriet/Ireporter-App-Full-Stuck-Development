@@ -32,10 +32,14 @@ async function updateProfile(req, res) {
       }
     }
 
+    const incomingProfilePicture = profilePicture !== undefined
+      ? profilePicture
+      : (profile_picture !== undefined ? profile_picture : undefined);
+
     const updated = await usersDal.updateProfile(req.user.id, {
       name: name !== undefined ? name : existing.name,
       email: email !== undefined ? email : existing.email,
-      profilePicture: (profilePicture !== undefined ? profilePicture : profile_picture) || existing.profilePicture,
+      profilePicture: incomingProfilePicture !== undefined ? incomingProfilePicture : existing.profilePicture,
     });
 
     res.json(updated);
