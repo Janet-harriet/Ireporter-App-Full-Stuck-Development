@@ -3,6 +3,7 @@ const usersDal = require('../services/users');
 const notificationsDal = require('../services/notifications');
 const { query } = require('../database');
 const emailService = require('../services/emailService');
+const { formatStatusLabel } = require('../utils/emailFormatters');
 
 // @route   POST /api/incidents
 // @desc    Create new incident
@@ -210,7 +211,7 @@ const updateIncident = async (req, res) => {
     if (isAdmin && status && status !== oldStatus) {
       const incidentOwner = await usersDal.findById(incident.userId);
       if (incidentOwner) {
-        const statusText = status.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const statusText = formatStatusLabel(status);
         const message = `Your incident "${incident.title}" status has been updated to "${statusText}"`;
 
         await notificationsDal.create({
@@ -227,35 +228,35 @@ const updateIncident = async (req, res) => {
       }
     }
 
-      // If the owner published a draft (changed from 'draft' -> non-draft), notify admins
-      if (isOwner && !isAdmin && status && status !== oldStatus && oldStatus === 'draft' && status !== 'draft') {
-        try {
-          const admins = await query(`SELECT id, name, email FROM Users WHERE role = 'admin' ORDER BY createdAt DESC`);
+    // If the owner published a draft (changed from 'draft' -> non-draft), notify admins
+    if (isOwner && !isAdmin && status && status !== oldStatus && oldStatus === 'draft' && status !== 'draft') {
+      try {
+        const admins = await query(`SELECT id, name, email FROM Users WHERE role = 'admin' ORDER BY createdAt DESC`);
 
-          const notificationPromises = admins.map(admin => {
-            const incidentType = updated.type === 'red-flag' ? 'Red-flag' : 'Intervention';
-            const message = `New ${incidentType.toLowerCase()} incident reported: "${updated.title}"`;
-            return notificationsDal.create({
-              userId: admin.id,
-              incidentId: updated.id,
-              incidentTitle: updated.title,
-              type: 'new-incident',
-              message,
-              newStatus: updated.status
-            });
+        const notificationPromises = admins.map(admin => {
+          const incidentType = updated.type === 'red-flag' ? 'Red-flag' : 'Intervention';
+          const message = `New ${incidentType.toLowerCase()} incident reported: "${updated.title}"`;
+          return notificationsDal.create({
+            userId: admin.id,
+            incidentId: updated.id,
+            incidentTitle: updated.title,
+            type: 'new-incident',
+            message,
+            newStatus: updated.status
           });
+        });
 
-          await Promise.all(notificationPromises);
+        await Promise.all(notificationPromises);
 
-          const emailPromises = admins.map(admin =>
-            emailService.sendIncidentCreatedEmail(admin, updated, req.user)
-          );
+        const emailPromises = admins.map(admin =>
+          emailService.sendIncidentCreatedEmail(admin, updated, req.user)
+        );
 
-          await Promise.all(emailPromises);
-        } catch (err) {
-          console.error('Error notifying admins after draft published:', err);
-        }
+        await Promise.all(emailPromises);
+      } catch (err) {
+        console.error('Error notifying admins after draft published:', err);
       }
+    }
 
     res.json({
       status: 'success',
